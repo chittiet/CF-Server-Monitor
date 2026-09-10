@@ -3,6 +3,7 @@ name = "cf-server-monitor"
 main = "src/index.js"
 compatibility_date = "2024-12-01"
 compatibility_flags = ["nodejs_compat"]
+workers_dev = false
 
 keep_vars = true
 
@@ -36,3 +37,6 @@ new_sqlite_classes = ["MetricsBroadcaster"]
 [dev]
 port = 8787
 local_protocol = "https"
+
+[observability]
+enabled = true

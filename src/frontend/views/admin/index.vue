@@ -819,7 +819,12 @@ const normalizePreferredThemeSetting = (value) => {
 
 const normalizeDefaultLanguageSetting = (value) => {
   const language = String(value || '').trim().toLowerCase()
-  return ['zh', 'en', 'auto'].includes(language) ? language : 'auto'
+  return ['zh', 'en', 'es', 'auto'].includes(language) ? language : 'auto'
+}
+
+const normalizeNotificationLanguageSetting = (value) => {
+  const language = String(value || '').trim().toLowerCase()
+  return ['zh', 'en', 'es'].includes(language) ? language : 'zh'
 }
 
 const formatThemeOptions = (value) => {
@@ -944,6 +949,7 @@ const settings = ref({
   tg_bot_token: '',
   tg_chat_id: '',
   notification_timezone: 'UTC',
+  notification_language: 'zh',
   expire_notification_time: '12',
   notification_webhook_enabled: false,
   notification_webhook_url: '',
@@ -1385,6 +1391,7 @@ const loadSettings = async () => {
         tg_bot_token: settingsData.tg_bot_token || '',
         tg_chat_id: settingsData.tg_chat_id || '',
         notification_timezone: normalizeNotificationTimezoneSetting(settingsData.notification_timezone),
+        notification_language: normalizeNotificationLanguageSetting(settingsData.notification_language),
         expire_notification_time: normalizeExpireNotificationTimeSetting(settingsData.expire_notification_time),
         notification_webhook_enabled: settingsData.notification_webhook_enabled === 'true' || settingsData.notification_webhook_enabled === true,
         notification_webhook_url: settingsData.notification_webhook_url || '',
@@ -1582,6 +1589,7 @@ const saveSettings = async () => {
       tg_bot_token: settings.value.tg_bot_token,
       tg_chat_id: settings.value.tg_chat_id,
       notification_timezone: normalizeNotificationTimezoneSetting(settings.value.notification_timezone),
+      notification_language: normalizeNotificationLanguageSetting(settings.value.notification_language),
       expire_notification_time: normalizeExpireNotificationTimeSetting(settings.value.expire_notification_time),
       notification_webhook_enabled: settings.value.notification_webhook_enabled ? 'true' : 'false',
       notification_webhook_url: settings.value.notification_webhook_url,
@@ -1768,8 +1776,6 @@ const copyCmd = (serverId) => {
   showCopyModal.value = true
 }
 
-const hasCorrectionValue = (value) => value !== null && value !== undefined && value !== ''
-
 const buildGhRawUrl = (proxy, path) => {
   const base = 'https://raw.githubusercontent.com'
   if (!proxy) return `${base}${path}`
@@ -1843,9 +1849,10 @@ const getCustomInstallCommand = () => {
   const autoUpdateFlag = autoUpdate.value ? 1 : 0
   const proxy = installGhProxy.value.trim()
   const version = installVersion.value.trim()
-  const effectiveConnectionMode = getEffectiveConnectionMode(connectionMode.value)
   const isDedicatedUserInstall = targetOs.value === 'linux' && installMode.value === 'cfsm-user'
-  const effectivePingMode = getEffectivePingMode(isDedicatedUserInstall ? 'tcp' : pingMode.value)
+  // 安装命令只保留必须写入本地的参数：id / secret / url / auto_update。
+  // collect_interval、interval、connection_mode、ping_mode、reset_day、ct/cu/cm/bd、node_1..4、interface、rx/tx_correction
+  // 等属于后端 /api 动态下发的配置（见 agentConfig.buildAgentConfig），Agent 启动后会自动拉取，无需写进安装命令。
   if (targetOs.value === 'windows') {
     const params = [
       'install'
@@ -1856,21 +1863,8 @@ const getCustomInstallCommand = () => {
       `-id='${copyServerId.value}'`,
       `-secret='${apiSecret.value}'`,
       `-url='${HOST}/update'`,
-      `-collect_interval='${collectInterval.value}'`,
-      `-interval='${reportInterval.value}'`,
-      `-connection_mode='${effectiveConnectionMode}'`,
-      `-ping_mode='${effectivePingMode}'`,
-      `-reset_day='${resetDay.value ?? 1}'`,
       `-auto_update='${autoUpdateFlag}'`
     )
-    if (customCt.value || explicitEmptyNodes.value.custom_ct) params.push(`-ct='${customCt.value}'`)
-    if (customCu.value || explicitEmptyNodes.value.custom_cu) params.push(`-cu='${customCu.value}'`)
-    if (customCm.value || explicitEmptyNodes.value.custom_cm) params.push(`-cm='${customCm.value}'`)
-    if (customBd.value || explicitEmptyNodes.value.custom_bd) params.push(`-bd='${customBd.value}'`)
-    if (node1.value || explicitEmptyNodes.value.node_1) params.push(`-node_1='${node1.value}'`); if (node2.value || explicitEmptyNodes.value.node_2) params.push(`-node_2='${node2.value}'`); if (node3.value || explicitEmptyNodes.value.node_3) params.push(`-node_3='${node3.value}'`); if (node4.value || explicitEmptyNodes.value.node_4) params.push(`-node_4='${node4.value}'`)
-    if (networkInterface.value) params.push(`-interface='${networkInterface.value}'`)
-    if (hasCorrectionValue(rxCorrection.value)) params.push(`-rx_correction='${rxCorrection.value}'`)
-    if (hasCorrectionValue(txCorrection.value)) params.push(`-tx_correction='${txCorrection.value}'`)
     const ghUrl = buildGhRawUrl(proxy, '/huilang-me/cfsm-agent/main/install.ps1')
     return `$script = "$env:TEMP\\install-cf-probe.ps1"; Invoke-WebRequest -Uri ${quotePowerShellArg(ghUrl)} -OutFile $script -UseBasicParsing; PowerShell -ExecutionPolicy Bypass -File $script ${params.join(' ')}`
   }
@@ -1891,21 +1885,8 @@ const getCustomInstallCommand = () => {
     `-id=${copyServerId.value}`,
     `-secret='${apiSecret.value}'`,
     `-url=${HOST}/update`,
-    `-collect_interval=${collectInterval.value}`,
-    `-interval=${reportInterval.value}`,
-    `-connection_mode=${effectiveConnectionMode}`,
-    `-ping_mode=${effectivePingMode}`,
-    `-reset_day=${resetDay.value ?? 1}`,
     `-auto_update=${autoUpdateFlag}`
   )
-  if (customCt.value || explicitEmptyNodes.value.custom_ct) params.push(`-ct='${customCt.value}'`)
-  if (customCu.value || explicitEmptyNodes.value.custom_cu) params.push(`-cu='${customCu.value}'`)
-  if (customCm.value || explicitEmptyNodes.value.custom_cm) params.push(`-cm='${customCm.value}'`)
-  if (customBd.value || explicitEmptyNodes.value.custom_bd) params.push(`-bd='${customBd.value}'`)
-  if (node1.value || explicitEmptyNodes.value.node_1) params.push(`-node_1='${node1.value}'`); if (node2.value || explicitEmptyNodes.value.node_2) params.push(`-node_2='${node2.value}'`); if (node3.value || explicitEmptyNodes.value.node_3) params.push(`-node_3='${node3.value}'`); if (node4.value || explicitEmptyNodes.value.node_4) params.push(`-node_4='${node4.value}'`)
-  if (networkInterface.value) params.push(`-interface=${networkInterface.value}`)
-  if (hasCorrectionValue(rxCorrection.value)) params.push(`-rx_correction=${rxCorrection.value}`)
-  if (hasCorrectionValue(txCorrection.value)) params.push(`-tx_correction=${txCorrection.value}`)
   const ghUrl = buildGhRawUrl(proxy, '/huilang-me/cfsm-agent/main/install.sh')
   const installCommand = `curl -fsSL ${quotePosixShellArg(ghUrl)} | sh -s -- ${params.join(' ')}`
   if (!isDedicatedUserInstall) return installCommand
@@ -2473,6 +2454,7 @@ const sendTestNotification = async () => {
       notification_webhook_body: settings.value.notification_webhook_body,
       notification_template: settings.value.notification_template,
       notification_timezone: normalizeNotificationTimezoneSetting(settings.value.notification_timezone),
+      notification_language: normalizeNotificationLanguageSetting(settings.value.notification_language),
       expire_notification_time: normalizeExpireNotificationTimeSetting(settings.value.expire_notification_time)
     })
     if (!result.error) {
